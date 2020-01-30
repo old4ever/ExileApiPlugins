@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using ExileCore;
 using ExileCore.PoEMemory.Components;
@@ -34,7 +35,10 @@ namespace Stashie
         private List<CustomFilter> _customFilters;
         private List<RefillProcessor> _customRefills;
         private List<FilterResult> _dropItems;
+
         //private int[,] _ignoredCells;
+
+
         private List<ListIndexNode> _settingsListNodes;
         private uint coroutineIteration;
         private Coroutine CoroutineWorker;
@@ -77,7 +81,10 @@ namespace Stashie
 
         public override void AreaChange(AreaInstance area)
         {
+
             //if (area.IsHideout) LoadIgnoredCells();
+
+
 
             //TODO Add lab name with stash
             if (area.IsHideout || area.DisplayName.Contains("Azurite Mine"))
@@ -105,6 +112,7 @@ namespace Stashie
 
         private void SaveDefaultConfigsToDisk()
         {
+           // WriteInventoryNames();
             var path = $"{DirectoryFullName}\\GitUpdateConfig.txt";
             const string gitUpdateConfig = "Owner:nymann\r\n" + "Name:Stashie\r\n" + "Release\r\n";
             CreateFileAndAppendTextIfItDoesNotExitst(path, gitUpdateConfig);
@@ -205,6 +213,9 @@ namespace Stashie
         {
             DrawIgnoredCellsSettings();
 
+
+
+
             base.DrawSettings();
 
             foreach (var settingsCustomRefillOption in Settings.CustomRefillOptions)
@@ -278,6 +289,81 @@ namespace Stashie
                 _settingsListNodes.Add(indexNodeS);
             }
         }
+
+        public void SaveIgnoredSLotsFromInventoryTemplate()
+        {
+            Settings.IgnoredCells = new[,]
+            {
+                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+            };
+            try
+            {
+                var inventory = GameController.Game.IngameState.IngameUi.InventoryPanel[InventoryIndex.PlayerInventory];
+                    foreach (var item in inventory.VisibleInventoryItems)
+                    {
+                        var baseC = item.Item.GetComponent<Base>();
+                        var itemSizeX = baseC.ItemCellsSizeX;
+                        var itemSizeY = baseC.ItemCellsSizeY;
+                        var inventPosX = item.InventPosX;
+                        var inventPosY = item.InventPosY;
+                        for (var y = 0; y < itemSizeY; y++)
+                        {
+                            for (var x = 0; x < itemSizeX; x++)
+                                Settings.IgnoredCells[y + inventPosY, x + inventPosX] = 1;
+                        }
+                    }
+            }
+            catch (Exception e)
+            {
+                LogError($"{e}", 5);
+            }
+        }
+
+        private void DrawIgnoredCellsSettings()
+        {
+            try
+            {
+                if (ImGui.Button("Copy Inventory"))
+                {
+                    SaveIgnoredSLotsFromInventoryTemplate();
+                }
+                ImGui.SameLine();
+                ImGui.TextDisabled("(?)");
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip($"Checked = Item will be ignored{Environment.NewLine}UnChecked = Item will be processed");
+                }
+            }
+            catch (Exception e)
+            {
+                LogError(e.ToString(), 10);
+            }
+
+            var _numb = 1;
+            for (var i = 0; i < 5; i++)
+            {
+                for (var j = 0; j < 12; j++)
+                {
+                    var toggled = Convert.ToBoolean(Settings.IgnoredCells[i, j]);
+                    if (ImGui.Checkbox($"##{_numb}IgnoredCells", ref toggled))
+                    {
+                        Settings.IgnoredCells[i, j] ^= 1;
+                    }
+
+                    if ((_numb - 1) % 12 < 11)
+                    {
+                        ImGui.SameLine();
+                    }
+
+                    _numb += 1;
+                }
+            }
+        }
+
 
         private void GenerateMenu()
         {
@@ -393,9 +479,9 @@ namespace Stashie
 
                 try
                 {
-                    _ignoredCells = JsonConvert.DeserializeObject<int[,]>(json);
-                    var ignoredHeight = _ignoredCells.GetLength(0);
-                    var ignoredWidth = _ignoredCells.GetLength(1);
+                    Settings.IgnoredCells = JsonConvert.DeserializeObject<int[,]>(json);
+                    var ignoredHeight = Settings.IgnoredCells.GetLength(0);
+                    var ignoredWidth = Settings.IgnoredCells.GetLength(1);
 
                     if (ignoredHeight != 5 || ignoredWidth != 12)
                         LogError("Stashie: Wrong IgnoredCells size! Should be 12x5. Reseting to default..", 5);
@@ -409,13 +495,7 @@ namespace Stashie
                 }
             }
 
-            _ignoredCells = new[,]
-            {
-                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-                {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-            };
-
-            var defaultSettings = JsonConvert.SerializeObject(_ignoredCells);
+            var defaultSettings = JsonConvert.SerializeObject(Settings.IgnoredCells);
             defaultSettings = defaultSettings.Replace("[[", "[\n[");
             defaultSettings = defaultSettings.Replace("],[", "],\n[");
             defaultSettings = defaultSettings.Replace("]]", "]\n]");
@@ -512,10 +592,17 @@ namespace Stashie
                     var testItem = new ItemData(invItem, baseItemType);
                     var result = CheckFilters(testItem);
 
-                    if (result != null) _dropItems.Add(result);
+                    if (result != null)
+                    {
+
+                        _dropItems.Add(result);
+                        //WriteInventoryNames();
+                    }
+
                 }
             }
         }
+
 
         public void SaveIgnoredSLotsFromInventoryTemplate()
         {
@@ -605,6 +692,21 @@ namespace Stashie
 
             ImGui.EndChild();
             ImGui.EndChild();
+
+        private void WriteInventoryNames()
+        {
+            var path = $"{DirectoryFullName}\\InventoryDebugList.txt";
+            StringBuilder sb = new StringBuilder();
+            foreach (var inventoryitem in _dropItems)
+            {
+                sb.AppendLine(inventoryitem.ItemData.BaseName);
+                sb.AppendLine(inventoryitem.ItemData.ClassName);
+                sb.AppendLine(inventoryitem.ItemData.Path.ToString());
+            }
+
+            File.WriteAllText(path, sb.ToString());
+
+
         }
 
         private bool CheckIgnoreCells(NormalInventoryItem inventItem)
@@ -619,8 +721,12 @@ namespace Stashie
 
             if (inventPosY < 0 || inventPosY >= 5) return true;
 
+
             //return _ignoredCells[inventPosY, inventPosX] != 0; //No need to check all item size
             return Settings.IgnoredCells[inventPosY, inventPosX] != 0;
+
+            return Settings.IgnoredCells[inventPosY, inventPosX] != 0; //No need to check all item size
+
         }
 
         private FilterResult CheckFilters(ItemData itemData)
@@ -645,7 +751,7 @@ namespace Stashie
         private IEnumerator DropToStash()
         {
             coroutineIteration++;
-            
+
             yield return DropItemsToStash();
         }
 
@@ -1153,7 +1259,11 @@ namespace Stashie
             _settingsListNodes = new List<ListIndexNode>(100);
             LoadCustomRefills();
             LoadCustomFilters();
+
             //LoadIgnoredCells();
+
+           // LoadIgnoredCells();
+
 
             try
             {
