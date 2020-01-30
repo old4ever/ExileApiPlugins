@@ -161,7 +161,11 @@ namespace PickIt
             {
                 #region Metamorph Body Parts
 
+
                 if (Settings.MetamorphBodyParts && (item.IsMetamorphBodyPart || item.ClassName.EndsWith("MetamorphosisDNA")))
+
+                if (Settings.MetamorphBodyParts && item.IsMetamorphBodyPart)
+
                 {
                     return true;
                 }
@@ -366,7 +370,11 @@ namespace PickIt
             }
 
             var metamorphLabels = GameController.Game.IngameState.IngameUi.ItemsOnGroundLabels.ToList()
+
                 .Where(x => x.Address != 0 && x.ItemOnGround.Path.Contains("MetamorphosisMonsterMarker"))
+
+                .Where(x => x.Address != 0 && x.ItemOnGround.Path.ToLower().Contains("metamorph"))
+
                 .Select(y => new CustomItem(y, GameController.Files, y.ItemOnGround.DistancePlayer, _weightsRules){IsMetamorphBodyPart = true}).ToList();
 
             currentLabels.AddRange(metamorphLabels);
